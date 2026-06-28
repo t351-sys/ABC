@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>木蘭詩：燕山戰役</title>
+    <!-- 引入 Tailwind CSS 來處理排版與美化 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 React 核心庫 -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- 引入 Babel 來讓瀏覽器看得懂 JSX 語法 -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background-color: #1c1917; }
+        /* 隱藏滾動條但保留滾動功能 */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- 國文題庫 (詩詞共鳴系統) ---
+        const QUESTIONS = [
+            {
+                q: "「朔氣傳金柝，寒光照鐵衣」主要描寫什麼情境？",
+                options: ["A. 戰場的艱苦與天氣寒冷", "B. 木蘭在軍營中磨練兵器", "C. 敵軍來襲的緊張氣氛"],
+                ans: 0,
+                explanation: "「朔」指北方，「朔氣」為北方的寒氣。此句描寫北方戰地氣候嚴寒，生活艱苦。"
+            },
+            {
+                q: "「將軍百戰死，壯士十年歸」使用了哪一種修辭手法？",
+                options: ["A. 擬人", "B. 互文", "C. 頂真"],
+                ans: 1,
+                explanation: "互文修辭。意指將軍與壯士們皆經歷百戰與多年征戰，有的戰死沙場，有的生還故鄉。"
+            },
+            {
+                q: "「萬里赴戎機，關山度若飛」中的「戎機」意思是？",
+                options: ["A. 戰車", "B. 兵器", "C. 戰事/軍事行動"],
+                ans: 2,
+                explanation: "「戎」指軍隊、軍事，「戎機」在此指奔赴戰場參與軍事行動。"
+            },
+            {
+                q: "「同行十二年，不知木蘭是女郎」中的「十二年」表示？",
+                options: ["A. 確切的12年", "B. 虛數，形容時間很長", "C. 指木蘭12歲出征"],
+                ans: 1,
+                explanation: "在古文中，數字如三、九、十二常作虛數，用來形容數量多或時間長。"
+            },
+            {
+                q: "「東市買駿馬，西市買鞍韉，南市買轡頭，北市買長鞭」使用了什麼修辭？",
+                options: ["A. 排比與鑲嵌", "B. 譬喻", "C. 誇飾"],
+                ans: 0,
+                explanation: "連用四個結構相似的句子為排比，並將東、西、南、北等方位詞鑲嵌其中，營造出市集奔波的忙碌感。"
+            },
+            {
+                q: "「阿爺無大兒，木蘭無長兄」這句話交代了什麼？",
+                options: ["A. 木蘭家境貧困", "B. 木蘭代父從軍的原因", "C. 木蘭的武藝高強"],
+                ans: 1,
+                explanation: "因為父親沒有大兒子，木蘭也沒有哥哥，父親年邁無法出征，才促使木蘭決定代父從軍。"
+            },
+            {
+                q: "「木蘭當戶織」的「戶」字，正確的解釋是？",
+                options: ["A. 門", "B. 窗戶", "C. 房間"],
+                ans: 0,
+                explanation: "「戶」在古文中指單扇的門，引申為門戶。「當戶」即是對著門。"
+            }
+        ];
+
+        // --- 遊戲裝備資料 ---
+        const MARKET_ITEMS = {
+            weapons: [
+                { id: 'w1', name: '鐵槍 (近戰)', desc: '攻擊力 35 | 射程 1', range: 1, damage: 35, cost: 40, icon: '🗡️' },
+                { id: 'w2', name: '胡木弓 (遠程)', desc: '攻擊力 20 | 射程 2', range: 2, damage: 20, cost: 70, icon: '🏹' }
+            ],
+            mounts: [
+                { id: 'm1', name: '老馬', desc: '移動力 1', move: 1, cost: 0, icon: '🐴' },
+                { id: 'm2', name: '燕山駿馬', desc: '移動力 2', move: 2, cost: 80, icon: '🏇' }
+            ]
+        };
+
+        // --- 主程式組件 ---
+        function MulanGame() {
+            const [gameState, setGameState] = useState('title'); // title, market, battle, victory, defeat
+            
+            // 玩家狀態
+            const [gold, setGold] = useState(150);
+            const [playerEquip, setPlayerEquip] = useState({ weapon: MARKET_ITEMS.weapons[0], mount: MARKET_ITEMS.mounts[0] });
+            const [playerStats, setPlayerStats] = useState({
+                hp: 100, maxHp: 100,
+                suspicion: 0, maxSuspicion: 100, // 破綻值 (警戒值)
+                x: 0, y: 0
+            });
+
+            // 戰鬥狀態
+            const gridSize = 6;
+            const [enemies, setEnemies] = useState([]);
+            const [turn, setTurn] = useState('player');
+            const [log, setLog] = useState([]);
+            
+            // 互動狀態
+            const [questionModal, setQuestionModal] = useState({ isOpen: false, qData: null, targetEnemy: null });
+
+            // 輔助函式：計算曼哈頓距離 (格子距離)
+            const getDistance = (x1, y1, x2, y2) => Math.abs(x1 - x2) + Math.abs(y1 - y2);
+
+            // 初始化戰鬥
+            const startBattle = () => {
+                setPlayerStats({ ...playerStats, hp: 100, suspicion: 0, x: 0, y: 0 });
+                setEnemies([
+                    { id: 1, hp: 40, maxHp: 40, attack: 15, x: 3, y: 1, type: '胡騎' },
+                    { id: 2, hp: 40, maxHp: 40, attack: 15, x: 4, y: 4, type: '胡騎' },
+                    { id: 3, hp: 60, maxHp: 60, attack: 20, x: 5, y: 5, type: '柔然首領' }
+                ]);
+                setLog(["【戰報】木蘭抵達燕山，遭遇敵軍！", "「萬里赴戎機，關山度若飛。」戰鬥開始！"]);
+                setTurn('player');
+                setGameState('battle');
+            };
+
+            // 加入戰鬥日誌
+            const addLog = (msg) => {
+                setLog(prev => [msg, ...prev].slice(0, 5));
+            };
+
+            // --- 玩家行動邏輯 ---
+            const handleCellClick = (x, y) => {
+                if (turn !== 'player') return;
+                
+                const dist = getDistance(playerStats.x, playerStats.y, x, y);
+                const targetEnemy = enemies.find(e => e.x === x && e.y === y);
+
+                if (targetEnemy) {
+                    // 點擊敵人：檢查射程並觸發攻擊/問答
+                    if (dist <= playerEquip.weapon.range) {
+                        const qData = QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)];
+                        setQuestionModal({ isOpen: true, qData, targetEnemy });
+                    } else {
+                        addLog("【提示】敵人在射程之外！");
+                    }
+                } else {
+                    // 點擊空地：移動
+                    if (dist > 0 && dist <= playerEquip.mount.move) {
+                        setPlayerStats(prev => ({ ...prev, x, y }));
+                        addLog(`【移動】木蘭策馬移動至 (${x}, ${y})`);
+                        endPlayerTurn();
+                    } else if (dist > playerEquip.mount.move) {
+                        addLog("【提示】馬匹移動力不足！");
+                    }
+                }
+            };
+
+            // 處理答題與攻擊結算
+            const handleAnswer = (selectedIndex) => {
+                const { qData, targetEnemy } = questionModal;
+                const isCorrect = selectedIndex === qData.ans;
+                
+                let damage = playerEquip.weapon.damage;
+                let logMsg = "";
+
+                if (isCorrect) {
+                    damage = Math.floor(damage * 1.5); // 爆擊
+                    logMsg = `【詩詞共鳴】答對了！木蘭施展絕技，對 ${targetEnemy.type} 造成 ${damage} 點會心傷害！`;
+                } else {
+                    damage = Math.floor(damage * 0.5); // 減傷
+                    logMsg = `【攻擊失誤】答錯了。(${qData.explanation}) 木蘭勉強攻擊，僅造成 ${damage} 點傷害。`;
+                }
+
+                addLog(logMsg);
+                setQuestionModal({ isOpen: false, qData: null, targetEnemy: null });
+
+                // 更新敵人狀態
+                setEnemies(prev => {
+                    const newEnemies = prev.map(e => {
+                        if (e.id === targetEnemy.id) {
+                            return { ...e, hp: Math.max(0, e.hp - damage) };
+                        }
+                        return e;
+                    }).filter(e => e.hp > 0);
+                    
+                    if (newEnemies.length === 0) {
+                        setTimeout(() => setGameState('victory'), 1000);
+                    }
+                    return newEnemies;
+                });
+
+                endPlayerTurn();
+            };
+
+            const endPlayerTurn = () => {
+                setTurn('enemy');
+            };
+
+            // --- 敵方 AI 邏輯 ---
+            useEffect(() => {
+                if (turn === 'enemy' && gameState === 'battle') {
+                    const runEnemyTurn = async () => {
+                        let currentMulan = { ...playerStats };
+                        let newEnemies = [...enemies];
+                        let hasPlayerLost = false;
+
+                        for (let i = 0; i < newEnemies.length; i++) {
+                            const enemy = newEnemies[i];
+                            if (enemy.hp <= 0) continue;
+
+                            await new Promise(r => setTimeout(r, 600)); // AI 思考延遲
+
+                            const dist = getDistance(enemy.x, enemy.y, currentMulan.x, currentMulan.y);
+                            
+                            if (dist === 1) {
+                                // 攻擊木蘭
+                                const dmg = enemy.attack;
+                                const susInc = 20; // 受傷增加破綻
+                                currentMulan.hp -= dmg;
+                                currentMulan.suspicion += susInc;
+                                addLog(`【敵襲】${enemy.type} 攻擊木蘭，造成 ${dmg} 傷害。盔甲受損，破綻值上升！`);
+                                
+                                if (currentMulan.hp <= 0 || currentMulan.suspicion >= 100) {
+                                    hasPlayerLost = true;
+                                    break;
+                                }
+                            } else {
+                                // 簡單尋路：朝木蘭移動一步
+                                let nextX = enemy.x;
+                                let nextY = enemy.y;
+                                if (currentMulan.x > enemy.x) nextX++;
+                                else if (currentMulan.x < enemy.x) nextX--;
+                                else if (currentMulan.y > enemy.y) nextY++;
+                                else if (currentMulan.y < enemy.y) nextY--;
+                                
+                                // 檢查是否碰撞其他敵人
+                                if (!newEnemies.find(e => e.x === nextX && e.y === nextY && e.id !== enemy.id)) {
+                                    enemy.x = nextX;
+                                    enemy.y = nextY;
+                                }
+                            }
+                        }
+                        
+                        setEnemies(newEnemies);
+                        setPlayerStats(currentMulan);
+
+                        if (hasPlayerLost) {
+                            setTimeout(() => setGameState('defeat'), 1000);
+                        } else {
+                            setTurn('player');
+                        }
+                    };
+
+                    runEnemyTurn();
+                }
+            }, [turn, gameState]);
+
+            // --- 渲染畫面 ---
+
+            // 1. 標題畫面
+            if (gameState === 'title') {
+                return (
+                    <div className="min-h-screen bg-stone-900 flex flex-col items-center justify-center p-4 text-stone-200 font-sans">
+                        <div className="max-w-2xl text-center border-4 border-amber-800 bg-stone-800 p-10 rounded-lg shadow-2xl relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-2 bg-amber-600"></div>
+                            <h1 className="text-5xl font-bold mb-4 text-amber-500 tracking-widest">木蘭詩<br/><span className="text-3xl text-stone-300 mt-2 block">燕山戰役</span></h1>
+                            <p className="mb-8 text-stone-400 text-lg leading-relaxed">
+                                「唧唧復唧唧，木蘭當戶織。」<br/>
+                                體驗代父從軍的英雄旅程。運用國文知識發動戰技，<br/>在戰場上擊退敵軍，並隱藏你的女兒身。
+                            </p>
+                            <button 
+                                onClick={() => setGameState('market')}
+                                className="bg-amber-700 hover:bg-amber-600 text-white px-8 py-3 rounded-full text-xl font-bold transition-all transform hover:scale-105 shadow-lg flex items-center justify-center mx-auto gap-2"
+                            >
+                                🗺️ 開始旅程
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            // 2. 市集畫面 (東市買駿馬)
+            if (gameState === 'market') {
+                const buyItem = (type, item) => {
+                    const currentItemCost = playerEquip[type].cost;
+                    const netCost = item.cost - currentItemCost;
+                    
+                    if (gold >= netCost) {
+                        setGold(gold - netCost);
+                        setPlayerEquip({ ...playerEquip, [type]: item });
+                    } else {
+                        alert("盤纏不足！");
+                    }
+                };
+
+                return (
+                    <div className="min-h-screen bg-stone-900 p-6 text-stone-200 flex flex-col items-center">
+                        <div className="w-full max-w-3xl bg-stone-800 p-6 rounded-lg border border-stone-600 shadow-xl">
+                            <h2 className="text-3xl font-bold text-amber-500 mb-2 border-b border-stone-600 pb-2">第一章：東市買駿馬</h2>
+                            <p className="text-stone-400 mb-4">「東市買駿馬，西市買鞍韉...」 出征前，妥善分配你的盤纏購買裝備。</p>
+                            
+                            <div className="flex justify-between items-center bg-amber-900/30 p-4 rounded mb-6 border border-amber-800/50">
+                                <span className="text-xl">目前盤纏：<strong className="text-amber-400">{gold} 錢</strong></span>
+                            </div>
+
+                            <div className="grid md:grid-cols-2 gap-6">
+                                {/* 武器區 */}
+                                <div className="bg-stone-700 p-4 rounded border border-stone-500 shadow-inner">
+                                    <h3 className="text-xl font-bold mb-4 flex items-center gap-2">⚔️ 兵器選擇</h3>
+                                    {MARKET_ITEMS.weapons.map(w => (
+                                        <div key={w.id} 
+                                            className={`p-3 mb-2 rounded cursor-pointer border-2 flex justify-between items-center transition-colors
+                                                ${playerEquip.weapon.id === w.id ? 'bg-amber-800 border-amber-400' : 'bg-stone-800 border-stone-600 hover:border-amber-600'}`}
+                                            onClick={() => buyItem('weapon', w)}
+                                        >
+                                            <div>
+                                                <div className="font-bold text-lg">{w.icon} {w.name}</div>
+                                                <div className="text-sm text-stone-400">{w.desc}</div>
+                                            </div>
+                                            <div className="text-amber-300 font-bold">{w.cost} 錢</div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* 坐騎區 */}
+                                <div className="bg-stone-700 p-4 rounded border border-stone-500 shadow-inner">
+                                    <h3 className="text-xl font-bold mb-4 flex items-center gap-2">🐴 坐騎選擇</h3>
+                                    {MARKET_ITEMS.mounts.map(m => (
+                                        <div key={m.id} 
+                                            className={`p-3 mb-2 rounded cursor-pointer border-2 flex justify-between items-center transition-colors
+                                                ${playerEquip.mount.id === m.id ? 'bg-amber-800 border-amber-400' : 'bg-stone-800 border-stone-600 hover:border-amber-600'}`}
+                                            onClick={() => buyItem('mount', m)}
+                                        >
+                                            <div>
+                                                <div className="font-bold text-lg">{m.icon} {m.name}</div>
+                                                <div className="text-sm text-stone-400">{m.desc}</div>
+                                            </div>
+                                            <div className="text-amber-300 font-bold">{m.cost} 錢</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="mt-8 text-center">
+                                <button 
+                                    onClick={startBattle}
+                                    className="bg-amber-600 hover:bg-amber-500 text-white px-8 py-3 rounded text-xl font-bold shadow-lg transition-transform transform hover:scale-105"
+                                >
+                                    萬里赴戎機 (進入戰鬥)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // 3. 戰鬥畫面
+            if (gameState === 'battle') {
+                return (
+                    <div className="min-h-screen bg-stone-900 p-4 text-stone-200 flex flex-col md:flex-row gap-4 justify-center items-start">
+                        
+                        {/* 左側面板：狀態與日誌 */}
+                        <div className="w-full md:w-80 flex flex-col gap-4 shrink-0">
+                            <div className="bg-stone-800 p-4 rounded border border-stone-600 shadow-xl">
+                                <h2 className="text-2xl font-bold text-amber-500 mb-2 border-b border-stone-700 pb-2">將軍狀態</h2>
+                                
+                                <div className="mb-3">
+                                    <div className="flex justify-between text-sm mb-1">
+                                        <span className="flex items-center gap-1">❤️ 生命/裝備</span>
+                                        <span>{playerStats.hp} / {playerStats.maxHp}</span>
+                                    </div>
+                                    <div className="w-full bg-stone-900 rounded-full h-3 border border-stone-700">
+                                        <div className="bg-red-500 h-3 rounded-full transition-all" style={{width: `${Math.max(0, (playerStats.hp/playerStats.maxHp)*100)}%`}}></div>
+                                    </div>
+                                </div>
+
+                                <div className="mb-4">
+                                    <div className="flex justify-between text-sm mb-1">
+                                        <span className="flex items-center gap-1">👁️ 女扮男裝 破綻值</span>
+                                        <span>{playerStats.suspicion} / 100</span>
+                                    </div>
+                                    <div className="w-full bg-stone-900 rounded-full h-3 border border-stone-700">
+                                        <div className="bg-purple-500 h-3 rounded-full transition-all" style={{width: `${(playerStats.suspicion/playerStats.maxSuspicion)*100}%`}}></div>
+                                    </div>
+                                    <p className="text-xs text-stone-500 mt-1">若破綻達100%，將被識破身分而敗北。</p>
+                                </div>
+
+                                <div className="bg-stone-700 p-2 rounded text-sm mb-2 flex justify-between border border-stone-600">
+                                    <span>武: {playerEquip.weapon.name}</span>
+                                    <span>攻 {playerEquip.weapon.damage} | 距 {playerEquip.weapon.range}</span>
+                                </div>
+                                <div className="bg-stone-700 p-2 rounded text-sm flex justify-between border border-stone-600">
+                                    <span>騎: {playerEquip.mount.name}</span>
+                                    <span>步數 {playerEquip.mount.move}</span>
+                                </div>
+                            </div>
+
+                            <div className="bg-stone-800 p-4 rounded border border-stone-600 flex-grow shadow-xl">
+                                <h3 className="font-bold text-amber-500 mb-2 flex items-center gap-2">📜 戰場戰報</h3>
+                                <div className="text-sm space-y-2 h-48 overflow-y-auto pr-2 hide-scrollbar">
+                                    {log.map((msg, idx) => (
+                                        <div key={idx} className={`p-2 rounded ${idx === 0 ? 'bg-stone-700 border-l-4 border-amber-500 text-stone-200' : 'text-stone-400'}`}>
+                                            {msg}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 右側面板：戰棋地圖 */}
+                        <div className="bg-stone-800 p-6 rounded border border-stone-600 flex flex-col items-center shadow-xl">
+                            <div className="mb-4 flex justify-between w-full items-center">
+                                <h2 className="text-2xl font-bold text-amber-500">燕山風雪陣</h2>
+                                <div className={`px-4 py-1 rounded font-bold shadow ${turn === 'player' ? 'bg-green-700 text-white' : 'bg-red-900 text-stone-300'}`}>
+                                    {turn === 'player' ? '你的回合 (點擊發動)' : '敵方行動中...'}
+                                </div>
+                            </div>
+
+                            <div 
+                                className="grid gap-1 bg-stone-900 p-2 rounded-lg border-2 border-stone-700 shadow-2xl relative"
+                                style={{ gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))` }}
+                            >
+                                {Array.from({ length: gridSize * gridSize }).map((_, idx) => {
+                                    const x = idx % gridSize;
+                                    const y = Math.floor(idx / gridSize);
+                                    
+                                    const isPlayerHere = playerStats.x === x && playerStats.y === y;
+                                    const enemyHere = enemies.find(e => e.x === x && e.y === y);
+                                    
+                                    const dist = getDistance(playerStats.x, playerStats.y, x, y);
+                                    const inMoveRange = turn === 'player' && !isPlayerHere && !enemyHere && dist > 0 && dist <= playerEquip.mount.move;
+                                    const inAttackRange = turn === 'player' && enemyHere && dist <= playerEquip.weapon.range;
+
+                                    let cellStyle = "w-12 h-12 md:w-16 md:h-16 flex items-center justify-center rounded cursor-default relative transition-all duration-200 ";
+                                    
+                                    if (isPlayerHere) cellStyle += "bg-amber-700 border-2 border-amber-300 z-10 scale-110 shadow-lg";
+                                    else if (enemyHere) cellStyle += "bg-red-900/60 border border-red-700 hover:border-red-400";
+                                    else if (inMoveRange) cellStyle += "bg-stone-800 hover:bg-green-800/40 border border-stone-600 hover:border-green-500 cursor-pointer";
+                                    else cellStyle += "bg-stone-800 border border-stone-700 opacity-80";
+
+                                    return (
+                                        <div 
+                                            key={idx} 
+                                            className={cellStyle}
+                                            onClick={() => handleCellClick(x, y)}
+                                        >
+                                            {isPlayerHere && <span className="text-3xl filter drop-shadow-md">🥷</span>}
+                                            {enemyHere && (
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-2xl filter drop-shadow-md">{enemyHere.type === '柔然首領' ? '👹' : '🏹'}</span>
+                                                    <div className="absolute top-0 w-full h-1 bg-red-900">
+                                                        <div className="bg-red-500 h-1" style={{width: `${(enemyHere.hp/enemyHere.maxHp)*100}%`}}></div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {inAttackRange && !enemyHere && turn === 'player' && <div className="absolute inset-0 bg-red-500/20 rounded pointer-events-none border border-red-500"></div>}
+                                            {inMoveRange && turn === 'player' && <div className="w-2 h-2 rounded-full bg-green-500/50"></div>}
+                                        </div>
+                                    );
+                                })}
+
+                                {/* 問答彈出視窗 */}
+                                {questionModal.isOpen && questionModal.qData && (
+                                    <div className="absolute inset-0 bg-stone-900/95 z-50 flex items-center justify-center p-4 rounded-lg backdrop-blur-sm border-2 border-amber-500">
+                                        <div className="w-full max-w-md bg-stone-800 p-6 rounded shadow-2xl border border-stone-600">
+                                            <div className="flex items-center gap-2 mb-4 text-amber-500 font-bold text-xl border-b border-stone-600 pb-2">
+                                                ❓ 詩詞共鳴發動！
+                                            </div>
+                                            <p className="text-lg mb-6 leading-relaxed text-stone-200">{questionModal.qData.q}</p>
+                                            <div className="space-y-3">
+                                                {questionModal.qData.options.map((opt, i) => (
+                                                    <button
+                                                        key={i}
+                                                        onClick={() => handleAnswer(i)}
+                                                        className="w-full text-left p-3 rounded bg-stone-700 hover:bg-amber-700 border border-stone-500 transition-colors text-stone-200"
+                                                    >
+                                                        {opt}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <div className="mt-4 text-stone-400 text-sm flex gap-4">
+                                <span className="flex items-center"><span className="inline-block w-3 h-3 bg-green-800 border border-green-500 mr-2"></span> 可移動範圍</span>
+                                <span className="flex items-center"><span className="inline-block w-3 h-3 bg-red-900/60 border border-red-700 mr-2"></span> 敵人在射程內點擊攻擊</span>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // 4. 結算畫面
+            if (gameState === 'victory' || gameState === 'defeat') {
+                const isWin = gameState === 'victory';
+                return (
+                    <div className="min-h-screen bg-stone-900 flex flex-col items-center justify-center p-4 text-stone-200 font-sans">
+                        <div className={`max-w-md text-center p-8 rounded-lg shadow-2xl border-4 ${isWin ? 'bg-amber-900/40 border-amber-500' : 'bg-red-900/40 border-red-700'}`}>
+                            <div className="flex justify-center mb-4 text-6xl">
+                                {isWin ? '🏆' : '💀'}
+                            </div>
+                            <h1 className="text-4xl font-bold mb-4">
+                                {isWin ? '戰役勝利！' : '不幸敗北...'}
+                            </h1>
+                            <p className="mb-8 text-lg text-stone-300">
+                                {isWin 
+                                    ? "「將軍百戰死，壯士十年歸。」你成功運用智慧與勇氣擊退了敵軍，保全了身分與性命。" 
+                                    : "「朔氣傳金柝，寒光照鐵衣...」你的防備被突破，女兒身分暴露，或者受了重傷，只能遺憾退場。"}
+                            </p>
+                            <button 
+                                onClick={() => setGameState('title')}
+                                className="bg-stone-700 hover:bg-stone-600 px-6 py-2 rounded font-bold border border-stone-500 transition-colors"
+                            >
+                                重新挑戰
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            return null;
+        }
+
+        // 將 React 元件渲染到 HTML 中的 <div id="root">
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MulanGame />);
+    </script>
+</body>
+</html>
